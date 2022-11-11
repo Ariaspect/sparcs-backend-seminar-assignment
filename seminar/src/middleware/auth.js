@@ -1,5 +1,5 @@
 const authMiddleware = (req, res, next) => {
-    if (req.body.credential === process.env.API_KEY) {
+    if (req.body.credential.id === process.env.API_ID && req.body.credential.pw === process.env.API_PW) {
         console.log("[AUTH-MIDDLEWARE] Authorized User");
         next();
     }
