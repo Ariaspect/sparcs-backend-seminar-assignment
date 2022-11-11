@@ -11,6 +11,7 @@ const FeedPage = (props: {}) => {
   const [ NPostCount, setNPostCount ] = React.useState<number>(0);
   const [ SNewPostTitle, setSNewPostTitle ] = React.useState<string>("");
   const [ SNewPostContent, setSNewPostContent ] = React.useState<string>("");
+  const [ Editing, setEditing ] = React.useState<number>(0);  // Edit feature
 
   React.useEffect( () => {
     let BComponentExited = false;
@@ -23,12 +24,23 @@ const FeedPage = (props: {}) => {
     };
     asyncFun().catch((e) => window.alert(`Error while running API Call: ${e}`));
     return () => { BComponentExited = true; }
-  }, [ NPostCount ]);
+  }, [ NPostCount, Editing ]);
 
   const createNewPost = () => {
     const asyncFun = async () => {
       await axios.post( SAPIBase + '/feed/addFeed', { title: SNewPostTitle, content: SNewPostContent } );
       setNPostCount(NPostCount + 1);
+      setSNewPostTitle("");
+      setSNewPostContent("");
+    }
+    asyncFun().catch(e => window.alert(`AN ERROR OCCURED! ${e}`));
+  }
+
+  // Edit feature
+  const editPost = (id: string) => {
+    const asyncFun = async () => {
+      await axios.post( SAPIBase + '/feed/editFeed', { id: id, title: SNewPostTitle, content: SNewPostContent } );
+      setEditing(Editing + 1);
       setSNewPostTitle("");
       setSNewPostContent("");
     }
@@ -58,6 +70,7 @@ const FeedPage = (props: {}) => {
         { LAPIResponse.map( (val, i) =>
           <div key={i} className={"feed-item"}>
             <div className={"delete-item"} onClick={(e) => deletePost(`${val.id}`)}>ⓧ</div>
+            <div className={"edit-item"} onClick={(e) => editPost(`${val.id}`)}>Edit</div>
             <h3 className={"feed-title"}>{ val.title }</h3>
             <p className={"feed-body"}>{ val.content }</p>
           </div>

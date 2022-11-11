@@ -26,6 +26,25 @@ class FeedDB {
         return true;
     }
 
+    editItem = ( id, title, content ) => {
+        let BItemEdited = false;
+        console.log(this.#LDataDB)
+        console.log("id is "+id)
+        this.#LDataDB = this.#LDataDB.filter( (i) => {
+            console.log(i.id)
+            if (i.id === id) {
+                console.log("got match")
+                i.title = title;
+                i.content = content;
+                BItemEdited = true;
+            }
+            console.log(i)
+            console.log(BItemEdited)
+            return true;
+        });
+        return BItemEdited;
+    }
+
     deleteItem = ( id ) => {
         let BItemDeleted = false;
         this.#LDataDB = this.#LDataDB.filter((value) => {
@@ -61,6 +80,17 @@ router.post('/addFeed', (req, res) => {
        return res.status(500).json({ error: e });
    }
 });
+
+router.post('/editFeed', (req, res) => {
+    try {
+        const { id, title, content } = req.body;
+        const editResult = feedDBInst.editItem(parseInt(id), title, content);
+        if (!editResult) return res.status(500).json({ error: dbRes.data })
+       else return res.status(200).json({ isOK: true });
+   } catch (e) {
+       return res.status(500).json({ error: e });
+    }
+ });
 
 router.post('/deleteFeed', (req, res) => {
     try {
