@@ -1,4 +1,5 @@
 const express = require('express');
+const FeedModel = require('../models/feed');
 
 const router = express.Router();
 
@@ -9,60 +10,64 @@ class FeedDB {
         return FeedDB._inst_;
     }
 
-    #id = 1; #itemCount = 1; #LDataDB = [{ id: 0, title: "test1", content: "Example body" }];
+    // #id = 1; #itemCount = 1; #LDataDB = [{ id: 0, title: "test1", content: "Example body" }];
 
     constructor() { console.log("[Feed-DB] DB Init Completed"); }
 
-    selectItems = ( count ) => {
-        if (count > this.#itemCount) return { success: false, data: "Too many items queried"  };
-        if (count < 0) return { success: false, data: "Invalid count provided" };
-        else return { success: true, data: this.#LDataDB.slice(0, count) }
+    selectItems = async ( count, search ) => {
+        try {
+            if (count === 0) return { success: true, data: [] };
+            const findArguments = search === "" ? {} : {$or: [ { title: { "$regex": search } }, { content: { "$regex": search } } ]};
+            const res = await FeedModel.find(findArguments).sort({'createdAt': -1}).limit(count).exec();
+            return { success: true, data: res };
+        } catch (e) {
+            console.log(`[Feed-DB] Select Error: ${ e }`);
+            return { success: false, data: `DB Error - ${ e }` };
+        }
     }
 
-    insertItem = ( item ) => {
+    insertItem = async ( item ) => {
         const { title, content } = item;
-        this.#LDataDB.push({ id: this.#id, title, content });
-        this.#id++; this.#itemCount++;
-        return true;
-    }
-
-    editItem = ( id, title, content ) => {
-        let BItemEdited = false;
-        console.log(this.#LDataDB)
-        console.log("id is "+id)
-        this.#LDataDB = this.#LDataDB.filter( (i) => {
-            console.log(i.id)
-            if (i.id === id) {
-                console.log("got match")
-                i.title = title;
-                i.content = content;
-                BItemEdited = true;
-            }
-            console.log(i)
-            console.log(BItemEdited)
+        try {
+            const newItem = new FeedModel({ title, content });
+            const res = await newItem.save();
             return true;
-        });
-        return BItemEdited;
+        } catch (e) {
+            console.log(`[Feed-DB] Insert Error: ${ e }`);
+            return false;
+        }
     }
 
-    deleteItem = ( id ) => {
-        let BItemDeleted = false;
-        this.#LDataDB = this.#LDataDB.filter((value) => {
-            const match = (value.id === id);
-            if (match) BItemDeleted = true;
-            return !match;
-        });
-        if (BItemDeleted) id--;
-        return BItemDeleted;
+    editItem = async ( id, title, content ) => {
+        try {
+            const OUpdateFilter = { _id: id };
+            const res = await FeedModel.updateOne(OUpdateFilter, { "$set": {"title": title, "content": content} })
+            return true;
+        } catch(e) {
+            console.log(`[Feed-DB] Edit Error: ${ e }`);
+            return false;
+        }
+    }
+
+    deleteItem = async ( id ) => {
+        try {
+            const ODeleteFilter = { _id: id };
+            const res = await FeedModel.deleteOne(ODeleteFilter);
+            return true;
+        } catch (e) {
+            console.log(`[Feed-DB] Delete Error: ${ e }`);
+            return false;
+        }
     }
 }
 
 const feedDBInst = FeedDB.getInst();
 
-router.get('/getFeed', (req, res) => {
+router.get('/getFeed', async (req, res) => {
     try {
         const requestCount = parseInt(req.query.count);
-        const dbRes = feedDBInst.selectItems(requestCount);
+        const searchString = req.query.search;
+        const dbRes = await feedDBInst.selectItems(requestCount, searchString);
         if (dbRes.success) return res.status(200).json(dbRes.data);
         else return res.status(500).json({ error: dbRes.data })
     } catch (e) {
@@ -70,10 +75,10 @@ router.get('/getFeed', (req, res) => {
     }
 });
 
-router.post('/addFeed', (req, res) => {
+router.post('/addFeed', async (req, res) => {
    try {
        const { title, content } = req.body;
-       const addResult = feedDBInst.insertItem({ title, content });
+       const addResult = await feedDBInst.insertItem({ title, content });
        if (!addResult) return res.status(500).json({ error: dbRes.data })
        else return res.status(200).json({ isOK: true });
    } catch (e) {
@@ -84,7 +89,7 @@ router.post('/addFeed', (req, res) => {
 router.post('/editFeed', (req, res) => {
     try {
         const { id, title, content } = req.body;
-        const editResult = feedDBInst.editItem(parseInt(id), title, content);
+        const editResult = feedDBInst.editItem(id, title, content);
         if (!editResult) return res.status(500).json({ error: dbRes.data })
        else return res.status(200).json({ isOK: true });
    } catch (e) {
@@ -92,10 +97,10 @@ router.post('/editFeed', (req, res) => {
     }
  });
 
-router.post('/deleteFeed', (req, res) => {
+router.post('/deleteFeed', async (req, res) => {
     try {
         const { id } = req.body;
-        const deleteResult = feedDBInst.deleteItem(parseInt(id));
+        const deleteResult = await feedDBInst.deleteItem(id);
         if (!deleteResult) return res.status(500).json({ error: "No item deleted" })
         else return res.status(200).json({ isOK: true });
     } catch (e) {
