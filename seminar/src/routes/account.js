@@ -1,5 +1,6 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
+const AccountModel = require('../models/account');
 
 const router = express.Router();
 
@@ -10,38 +11,60 @@ class BankDB {
         return BankDB._inst_;
     }
 
-    #total = 10000;
+    // #total = 10000;
 
-    constructor() { console.log("[Bank-DB] DB Init Completed"); }
-
-    getBalance = () => {
-        return { success: true, data: this.#total };
+    constructor() {
+        const account = new AccountModel({ accountID: process.env.API_ID, balance: 10000 });
+        const res = account.save();
+        console.log("[Bank-DB] DB Init Completed");
     }
 
-    transaction = ( amount ) => {
-        this.#total += amount;
-        return { success: true, data: this.#total };
+    getBalance = async ( accID ) => {
+        try {
+            const OAccountFilter = { accountID: accID };
+            const res = await AccountModel.findOne(OAccountFilter);
+            return { success: true, data: res };
+        } catch(e) {
+            console.log(`[Account-DB] Get Error: ${ e }`);
+            return { success: false };
+        }
+    }
+
+    transaction = async ( accID, amount ) => {
+        try {
+            const OAccountFilter = { accountID: accID };
+            const res = await AccountModel.findOneAndUpdate(OAccountFilter, { "$inc": { "balance": amount } }, { returnDocument: "after" });
+            console.log(res);
+            return { success: true, data: res };
+        } catch(e) {
+            console.log(`[Account-DB] Transaction Error: ${ e }`);
+            return { success: false };
+        }
     }
 }
 
 const bankDBInst = BankDB.getInst();
 
-router.post('/getInfo', authMiddleware, (req, res) => {
+router.post('/getInfo', authMiddleware, async (req, res) => {
     try {
-        const { success, data } = bankDBInst.getBalance();
-        if (success) return res.status(200).json({ balance: data });
-        else return res.status(500).json({ error: data });
+        const accID = req.body.credential.id;
+        const dbRes = await bankDBInst.getBalance( accID );
+        console.log(dbRes)
+        if (dbRes.success) return res.status(200).json(dbRes.data);
+        else return res.status(500).json({ error: dbRes.data });
     } catch (e) {
         return res.status(500).json({ error: e });
     }
 });
 
-router.post('/transaction', authMiddleware, (req, res) => {
+router.post('/transaction', authMiddleware, async (req, res) => {
     try {
+        const accID = req.body.credential.id;
         const { amount } = req.body;
-        const { success, data } = bankDBInst.transaction( parseInt(amount) );
-        if (success) res.status(200).json({ success: true, balance: data, msg: "Transaction success" });
-        else res.status(500).json({ error: data })
+        console.log(amount);
+        const dbRes = await bankDBInst.transaction( accID, parseInt(amount) );
+        if (dbRes.success) res.status(200).json({ success: true, balance: dbRes.data.balance, msg: "Transaction success" });
+        else res.status(500).json({ error: dbRes.data })
     } catch (e) {
         return res.status(500).json({ error: e });
     }
